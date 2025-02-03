@@ -11,13 +11,14 @@
             padding: 20px;
             background: url('https://source.unsplash.com/featured/?artificialintelligence') no-repeat center center fixed;
             background-size: cover;
-            color: white,black;
+            color: white;
         }
         .chart-container {
             width: 80%;
             margin: 20px auto;
             padding: 20px;
             border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
         }
         textarea {
             width: 80%;
@@ -65,14 +66,15 @@
 
     <script>
         const API_KEYS = {
-            gemini: "AIzaSyA2mdcbh8qSUOcXPUaaxLtLCnwYd5D1b8E",
-            chatgpt: "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",
+            gemini: "AIzaSyBKpm978kAJftg50C8l5phc5_cf3ObXWqY",
+            chatgpt: "sk-proj-iYt5_vHuhn3PKinbDH0G6jVNF7teyhbCHvaEvN540GZl-pOu1kJowDhTHS0xWI2l2CGnp2PRrLT3BlbkFJ8o0f_KcTA_4B",
             huggingface: "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"
         };
 
         async function fetchAIResponse(api, query) {
             const start = performance.now();
             let responseText = "No response";
+
             try {
                 if (api === "gemini") {
                     const res = await fetch(
@@ -87,21 +89,30 @@
                     );
                     const data = await res.json();
                     responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from Gemini";
-                } else if (api === "chatgpt") {
+                } 
+                else if (api === "chatgpt") {
                     const res = await fetch("https://api.openai.com/v1/chat/completions", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            "Authorization": `Bearer ${API_KEYS.chatgpt}`
+                            "Authorization": `Bearer ${API_KEYS.chatgpt}` // Fixed authorization header
                         },
                         body: JSON.stringify({ 
                             model: "gpt-3.5-turbo", 
                             messages: [{ role: "user", content: query }] 
                         })
                     });
-                    const data = await res.json();
-                    responseText = data.choices?.[0]?.message?.content || "No response from ChatGPT";
-                } else if (api === "huggingface") {
+
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        console.error("Error with ChatGPT API:", errorData);
+                        responseText = `ChatGPT Error: ${errorData.error?.message || "Unknown error"}`;
+                    } else {
+                        const data = await res.json();
+                        responseText = data.choices?.[0]?.message?.content || "No response from ChatGPT";
+                    }
+                } 
+                else if (api === "huggingface") {
                     const res = await fetch(
                         "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3",
                         {
@@ -113,13 +124,21 @@
                             body: JSON.stringify({ inputs: query })
                         }
                     );
-                    const data = await res.json();
-                    responseText = data?.[0]?.generated_text || "No response from Hugging Face";
+
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        console.error("Error with Hugging Face API:", errorData);
+                        responseText = `Hugging Face Error: ${errorData.error || "Unknown error"}`;
+                    } else {
+                        const data = await res.json();
+                        responseText = data?.[0]?.generated_text || "No response from Hugging Face";
+                    }
                 }
             } catch (error) {
                 console.error(`Error fetching response from ${api}:`, error);
                 responseText = `${api} Error: ${error.message}`;
             }
+
             const end = performance.now();
             return { 
                 response: responseText, 
@@ -132,15 +151,18 @@
             const datasets = [
                 {
                     label: 'Gemini',
-                    data: labels.map(label => metrics[label].gemini)
+                    data: labels.map(label => metrics[label].gemini),
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)'
                 },
                 {
                     label: 'ChatGPT',
-                    data: labels.map(label => metrics[label].chatgpt)
+                    data: labels.map(label => metrics[label].chatgpt),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)'
                 },
                 {
                     label: 'Hugging Face',
-                    data: labels.map(label => metrics[label].huggingface)
+                    data: labels.map(label => metrics[label].huggingface),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)'
                 }
             ];
 
@@ -174,13 +196,7 @@
                 Accuracy: { gemini: 8, chatgpt: 9, huggingface: 7 },
                 Creativity: { gemini: 7, chatgpt: 8, huggingface: 6 },
                 Speed: { gemini: parseFloat(gemini.time), chatgpt: parseFloat(chatgpt.time), huggingface: parseFloat(huggingface.time) },
-                "Contextual Understanding": { gemini: 8, chatgpt: 9, huggingface: 7 },
-                "Domain Expertise": { gemini: 7, chatgpt: 8, huggingface: 6 },
-                "Bias and Fairness": { gemini: 8, chatgpt: 7, huggingface: 7 },
-                Customizability: { gemini: 7, chatgpt: 9, huggingface: 8 },
-                "User Interface (UI)": { gemini: 8, chatgpt: 9, huggingface: 7 },
-                "Cost and Scalability": { gemini: 7, chatgpt: 8, huggingface: 9 },
-                "Ethical Considerations": { gemini: 8, chatgpt: 7, huggingface: 7 }
+                ContextualUnderstanding: { gemini: 8, chatgpt: 9, huggingface: 7 }
             };
 
             generateCharts(metrics);
