@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Model Comparison</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            padding: 20px;
+            background: url('https://source.unsplash.com/featured/?artificialintelligence') no-repeat center center fixed;
+            background-size: cover;
+            color: white;
+        }
+        .chart-container {
+            width: 80%;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        textarea {
+            width: 80%;
+            height: 100px;
+            margin: 10px auto;
+            display: block;
+            background: rgba(255, 255, 255, 0.8);
+            color: black;
+            font-family: 'Times New Roman', serif;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-family: 'Times New Roman', serif;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Model Response Comparison</h1>
+    <input type="text" id="queryBox" placeholder="Enter your query here...">
+    <button id="submitBtn">Ask</button>
+    
+    <div id="results">
+        <h2>Results:</h2>
+        <textarea id="geminiResponse" readonly></textarea>
+        <textarea id="chatgptResponse" readonly></textarea>
+        <textarea id="huggingfaceResponse" readonly></textarea>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="barChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="radarChart"></canvas>
+    </div>
+
+    <script>
+        const API_KEYS = {
+            gemini: "AIzaSyA2mdcbh8qSUOcXPUaaxLtLCnwYd5D1b8E",
+            chatgpt: "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",
+            huggingface: "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"
+        };
+
+        async function fetchAIResponse(api, query) {
+            const start = performance.now();
+            let responseText = "No response";
+            try {
+                if (api === "gemini") {
+                    const res = await fetch(
+                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEYS.gemini}`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: query }] }]
+                            })
+                        }
+                    );
+                    const data = await res.json();
+                    responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from Gemini";
+                } else if (api === "chatgpt") {
+                    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${API_KEYS.chatgpt}`
+                        },
+                        body: JSON.stringify({ 
+                            model: "gpt-3.5-turbo", 
+                            messages: [{ role: "user", content: query }] 
+                        })
+                    });
+                    const data = await res.json();
+                    responseText = data.choices?.[0]?.message?.content || "No response from ChatGPT";
+                } else if (api === "huggingface") {
+                    const res = await fetch(
+                        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3",
+                        {
+                            method: "POST",
+                            headers: { 
+                                "Authorization": `Bearer ${API_KEYS.huggingface}`,
+                                "Content-Type": "application/json" 
+                            },
+                            body: JSON.stringify({ inputs: query })
+                        }
+                    );
+                    const data = await res.json();
+                    responseText = data?.[0]?.generated_text || "No response from Hugging Face";
+                }
+            } catch (error) {
+                console.error(`Error fetching response from ${api}:`, error);
+                responseText = `${api} Error: ${error.message}`;
+            }
+            const end = performance.now();
+            return { 
+                response: responseText, 
+                time: ((end - start) / 1000).toFixed(3) 
+            };
+        }
+
+        function generateCharts(metrics) {
+            const labels = Object.keys(metrics);
+            const datasets = [
+                {
+                    label: 'Gemini',
+                    data: labels.map(label => metrics[label].gemini)
+                },
+                {
+                    label: 'ChatGPT',
+                    data: labels.map(label => metrics[label].chatgpt)
+                },
+                {
+                    label: 'Hugging Face',
+                    data: labels.map(label => metrics[label].huggingface)
+                }
+            ];
+
+            new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: { labels, datasets },
+                options: { responsive: true }
+            });
+
+            new Chart(document.getElementById('radarChart'), {
+                type: 'radar',
+                data: { labels, datasets },
+                options: { responsive: true }
+            });
+        }
+
+        document.getElementById("submitBtn").addEventListener("click", async () => {
+            const query = document.getElementById("queryBox").value;
+
+            const [gemini, chatgpt, huggingface] = await Promise.all([
+                fetchAIResponse("gemini", query),
+                fetchAIResponse("chatgpt", query),
+                fetchAIResponse("huggingface", query)
+            ]);
+
+            document.getElementById("geminiResponse").value = `Gemini: ${gemini.response}`;
+            document.getElementById("chatgptResponse").value = `ChatGPT: ${chatgpt.response}`;
+            document.getElementById("huggingfaceResponse").value = `Hugging Face: ${huggingface.response}`;
+
+            const metrics = {
+                Accuracy: { gemini: 8, chatgpt: 9, huggingface: 7 },
+                Creativity: { gemini: 7, chatgpt: 8, huggingface: 6 },
+                Speed: { gemini: parseFloat(gemini.time), chatgpt: parseFloat(chatgpt.time), huggingface: parseFloat(huggingface.time) },
+                "Contextual Understanding": { gemini: 8, chatgpt: 9, huggingface: 7 },
+                "Domain Expertise": { gemini: 7, chatgpt: 8, huggingface: 6 },
+                "Bias and Fairness": { gemini: 8, chatgpt: 7, huggingface: 7 },
+                Customizability: { gemini: 7, chatgpt: 9, huggingface: 8 },
+                "User Interface (UI)": { gemini: 8, chatgpt: 9, huggingface: 7 },
+                "Cost and Scalability": { gemini: 7, chatgpt: 8, huggingface: 9 },
+                "Ethical Considerations": { gemini: 8, chatgpt: 7, huggingface: 7 }
+            };
+
+            generateCharts(metrics);
+        });
+    </script>
+</body>
+</html>
